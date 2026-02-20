@@ -23,15 +23,11 @@ class UserData {
                 balance: 0,
                 completedTasks: [],
                 referrals: [],
-                referralCode: this.generateReferralCode(),
+                referralCode: this.userId, // Просто ID пользователя как реферальный код
                 lastWithdrawals: this.generateInitialWithdrawals()
             };
             this.saveUserData();
         }
-    }
-
-    generateReferralCode() {
-        return 'ref_' + this.userId + '_' + Math.random().toString(36).substr(2, 6);
     }
 
     generateInitialWithdrawals() {
@@ -64,44 +60,14 @@ class UserData {
 
     checkReferralParam() {
         const startParam = tg.initDataUnsafe.start_param;
-        if (startParam && startParam.startsWith('ref_')) {
-            this.processReferral(startParam);
-        }
-    }
-
-    processReferral(referrerCode) {
-        // Проверяем, не приглашал ли уже этот пользователь
-        if (localStorage.getItem(`referred_${this.userId}`)) {
-            return;
-        }
-
-        // Ищем реферера в localStorage
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('user_')) {
-                try {
-                    const userData = JSON.parse(localStorage.getItem(key));
-                    if (userData.referralCode === referrerCode) {
-                        if (!userData.referrals.includes(this.userId)) {
-                            userData.referrals.push(this.userId);
-                            localStorage.setItem(key, JSON.stringify(userData));
-                            
-                            if (key === `user_${this.userId}`) {
-                                this.data.referrals = userData.referrals;
-                            }
-                            
-                            localStorage.setItem(`referred_${this.userId}`, 'true');
-                            
-                            setTimeout(() => {
-                                this.showNotification('Вы успешно присоединились по реферальной ссылке!');
-                            }, 1000);
-                        }
-                        break;
-                    }
-                } catch (e) {
-                    console.log('Ошибка парсинга данных');
-                }
-            }
+        if (startParam) {
+            // Просто сохраняем, что пользователь пришел по рефералке
+            // ID реферера уже передается в start_param от бота
+            localStorage.setItem(`referred_${this.userId}`, startParam);
+            
+            setTimeout(() => {
+                this.showNotification('✅ Вы пришли по реферальной ссылке!');
+            }, 1000);
         }
     }
 
@@ -161,13 +127,10 @@ class UserData {
             let isDisabled = false;
             
             if (task.id === 'referral') {
-                const referralsCount = this.data.referrals.length;
-                progressHtml = `<div class="task-progress">Приглашено: ${referralsCount}/20</div>`;
-                buttonText = referralsCount >= 20 ? 'Выполнено' : 'Пригласить';
-                
-                if (referralsCount >= 20 && !isCompleted) {
-                    this.completeTask('referral');
-                }
+                // Показываем только информацию, без кнопки
+                progressHtml = `<div class="task-progress">✅ Реферальная ссылка отправлена в боте</div>`;
+                buttonText = 'В боте';
+                isDisabled = true;
             }
             
             if (isCompleted) {
@@ -183,7 +146,7 @@ class UserData {
                     </div>
                     <span class="task-price">+${task.reward} ₽</span>
                     <button 
-                        class="task-button ${isCompleted ? 'completed' : ''}" 
+                        class="task-button ${isCompleted || task.id === 'referral' ? 'completed' : ''}" 
                         onclick="handleTask('${task.id}')"
                         ${isDisabled ? 'disabled' : ''}
                     >
@@ -234,7 +197,7 @@ const tasks = [
     },
     {
         id: 'referral',
-        title: 'Пригласить 20 друзей',
+        title: 'Пригласить 20 друзей (ссылка в боте)',
         reward: 6000
     }
 ];
@@ -303,45 +266,12 @@ function processWithdraw(method) {
 function handleTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     
-    if (!task || user.data.completedTasks.includes(taskId)) {
-        return;
-    }
-    
-    if (taskId === 'referral') {
-        handleReferralTask();
+    if (!task || user.data.completedTasks.includes(taskId) || taskId === 'referral') {
         return;
     }
     
     user.showNotification(`Задание выполнено! Получено +${task.reward} ₽`);
     user.completeTask(taskId);
-}
-
-function handleReferralTask() {
-    // ЗАМЕНИТЕ НА USERNAME ВАШЕГО БОТА
-    const botUsername = 'coolrayhgsbot'; 
-    
-    const referralLink = `https://t.me/${botUsername}?start=${user.data.referralCode}`;
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.style.display = 'block';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <span class="close" onclick="this.parentElement.parentElement.remove()">&times;</span>
-            <h2>Ваша реферальная ссылка</h2>
-            <div class="referral-link">
-                <a href="${referralLink}" target="_blank">${referralLink}</a>
-            </div>
-            <p style="color: #888; margin-top: 12px; font-size: 14px;">
-                Отправьте эту ссылку друзьям. Когда они запустят бота, вы получите +1 к счетчику.
-            </p>
-            <button onclick="copyToClipboard('${referralLink}')" class="copy-btn">Копировать ссылку</button>
-            <p style="color: #888; margin-top: 12px; font-size: 12px;">
-                Текущий счетчик: ${user.data.referrals.length}/20
-            </p>
-        </div>
-    `;
-    document.body.appendChild(modal);
 }
 
 function copyToClipboard(text) {
