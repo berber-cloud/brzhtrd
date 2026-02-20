@@ -23,7 +23,6 @@ class UserData {
                 balance: 0,
                 completedTasks: [],
                 referrals: [],
-                referralCode: this.userId, // Просто ID пользователя как реферальный код
                 lastWithdrawals: this.generateInitialWithdrawals()
             };
             this.saveUserData();
@@ -61,9 +60,24 @@ class UserData {
     checkReferralParam() {
         const startParam = tg.initDataUnsafe.start_param;
         if (startParam) {
-            // Просто сохраняем, что пользователь пришел по рефералке
-            // ID реферера уже передается в start_param от бота
-            localStorage.setItem(`referred_${this.userId}`, startParam);
+            // Сохраняем ID реферера
+            localStorage.setItem(`referred_by_${this.userId}`, startParam);
+            
+            // Увеличиваем счетчик рефералов у реферера (если он есть в localStorage)
+            const allUsers = Object.keys(localStorage);
+            for (let i = 0; i < allUsers.length; i++) {
+                const key = allUsers[i];
+                if (key.startsWith('user_')) {
+                    try {
+                        const userData = JSON.parse(localStorage.getItem(key));
+                        // Проверяем, что это не текущий пользователь
+                        if (key !== `user_${this.userId}`) {
+                            // Здесь можно добавить логику для увеличения счетчика
+                            // Но так как реферальная ссылка только в боте, то приложение только уведомляет
+                        }
+                    } catch (e) {}
+                }
+            }
             
             setTimeout(() => {
                 this.showNotification('✅ Вы пришли по реферальной ссылке!');
@@ -122,35 +136,36 @@ class UserData {
         const tasksList = document.getElementById('tasksList');
         tasksList.innerHTML = tasks.map(task => {
             const isCompleted = this.data.completedTasks.includes(task.id);
-            let progressHtml = '';
-            let buttonText = 'Выполнить';
-            let isDisabled = false;
             
+            // Для реферального задания показываем просто информацию
             if (task.id === 'referral') {
-                // Показываем только информацию, без кнопки
-                progressHtml = `<div class="task-progress">✅ Реферальная ссылка отправлена в боте</div>`;
-                buttonText = 'В боте';
-                isDisabled = true;
+                return `
+                    <div class="task-item">
+                        <div class="task-info">
+                            <div class="task-title">${task.title}</div>
+                            <div class="task-progress">📱 Ссылка уже отправлена в боте</div>
+                        </div>
+                        <span class="task-price">+${task.reward} ₽</span>
+                        <button class="task-button completed" disabled>
+                            В боте
+                        </button>
+                    </div>
+                `;
             }
             
-            if (isCompleted) {
-                buttonText = 'Выполнено';
-                isDisabled = true;
-            }
-            
+            // Для обычных заданий
             return `
                 <div class="task-item">
                     <div class="task-info">
                         <div class="task-title">${task.title}</div>
-                        ${progressHtml}
                     </div>
                     <span class="task-price">+${task.reward} ₽</span>
                     <button 
-                        class="task-button ${isCompleted || task.id === 'referral' ? 'completed' : ''}" 
+                        class="task-button ${isCompleted ? 'completed' : ''}" 
                         onclick="handleTask('${task.id}')"
-                        ${isDisabled ? 'disabled' : ''}
+                        ${isCompleted ? 'disabled' : ''}
                     >
-                        ${buttonText}
+                        ${isCompleted ? 'Выполнено' : 'Выполнить'}
                     </button>
                 </div>
             `;
@@ -266,18 +281,13 @@ function processWithdraw(method) {
 function handleTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     
-    if (!task || user.data.completedTasks.includes(taskId) || taskId === 'referral') {
+    if (!task || user.data.completedTasks.includes(taskId)) {
         return;
     }
     
+    // Имитация проверки подписки
     user.showNotification(`Задание выполнено! Получено +${task.reward} ₽`);
     user.completeTask(taskId);
-}
-
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        user.showNotification('Ссылка скопирована!');
-    });
 }
 
 // Закрытие модального окна при клике вне его
