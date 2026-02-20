@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Заработок в Telegram</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Шапка профиля -->
+        <div class="header">
+            <div class="profile">
+                <img src="https://via.placeholder.com/40" alt="Avatar" class="avatar" id="userAvatar">
+                <span class="username" id="userName">Загрузка...</span>
+            </div>
+            <div class="balance-container" onclick="showWithdrawModal()">
+                <span class="balance-label">Баланс</span>
+                <span class="balance-amount" id="userBalance">0 ₽</span>
+            </div>
+        </div>
+
+        <!-- Модальное окно вывода средств -->
+        <div id="withdrawModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeWithdrawModal()">&times;</span>
+                <h2>Вывод средств</h2>
+                <div class="withdraw-buttons">
+                    <button onclick="showWithdrawMethod('card')" class="withdraw-btn">На карту</button>
+                    <button onclick="showWithdrawMethod('sbp')" class="withdraw-btn">СБП</button>
+                </div>
+                <div id="withdrawForm" class="withdraw-form"></div>
+                <div id="withdrawMessage" class="withdraw-message"></div>
+            </div>
+        </div>
+
+        <!-- Уведомление -->
+        <div id="notification" class="notification"></div>
+
+        <!-- Список последних выводов -->
+        <div class="recent-withdrawals">
+            <h3>Последние выводы</h3>
+            <div id="withdrawalsList" class="withdrawals-list"></div>
+        </div>
+
+        <!-- Список заданий -->
+        <div class="tasks-section">
+            <h3>Доступные задания</h3>
+            <div id="tasksList" class="tasks-list"></div>
+        </div>
+    </div>
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
