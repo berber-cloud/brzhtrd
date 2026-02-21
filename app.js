@@ -5,11 +5,9 @@ tg.expand();
 // Класс для управления данными пользователя
 class UserData {
     constructor() {
-        this.userId = tg.initDataUnsafe.user?.id || 'user_' + Math.random().toString(36).substr(2, 9);
+        this.userId = tg.initDataUnsafe.user?.id;
         this.loadUserData();
-        
-        // Проверяем реферальный параметр при запуске
-        this.checkReferralParam();
+        this.loadFromServer();
     }
 
     loadUserData() {
@@ -22,10 +20,20 @@ class UserData {
                 avatar: tg.initDataUnsafe.user?.photo_url || 'https://via.placeholder.com/40',
                 balance: 0,
                 completedTasks: [],
-                referrals: [],
+                referrals: 0,
                 lastWithdrawals: this.generateInitialWithdrawals()
             };
-            this.saveUserData();
+        }
+    }
+
+    async loadFromServer() {
+        try {
+            // Отправляем запрос в бота для получения актуальных данных
+            tg.sendData(JSON.stringify({
+                action: 'get_user_data'
+            }));
+        } catch (e) {
+            console.log('Ошибка загрузки данных с сервера');
         }
     }
 
@@ -57,43 +65,9 @@ class UserData {
         this.updateUI();
     }
 
-    checkReferralParam() {
-        const startParam = tg.initDataUnsafe.start_param;
-        if (startParam) {
-            // Сохраняем ID реферера
-            localStorage.setItem(`referred_by_${this.userId}`, startParam);
-            
-            // Увеличиваем счетчик рефералов у реферера (если он есть в localStorage)
-            const allUsers = Object.keys(localStorage);
-            for (let i = 0; i < allUsers.length; i++) {
-                const key = allUsers[i];
-                if (key.startsWith('user_')) {
-                    try {
-                        const userData = JSON.parse(localStorage.getItem(key));
-                        // Проверяем, что это не текущий пользователь
-                        if (key !== `user_${this.userId}`) {
-                            // Здесь можно добавить логику для увеличения счетчика
-                            // Но так как реферальная ссылка только в боте, то приложение только уведомляет
-                        }
-                    } catch (e) {}
-                }
-            }
-            
-            setTimeout(() => {
-                this.showNotification('✅ Вы пришли по реферальной ссылке!');
-            }, 1000);
-        }
-    }
-
     completeTask(taskId) {
         if (!this.data.completedTasks.includes(taskId)) {
             this.data.completedTasks.push(taskId);
-            
-            const task = tasks.find(t => t.id === taskId);
-            if (task) {
-                this.updateBalance(task.reward);
-            }
-            
             this.saveUserData();
             this.updateUI();
         }
@@ -137,23 +111,21 @@ class UserData {
         tasksList.innerHTML = tasks.map(task => {
             const isCompleted = this.data.completedTasks.includes(task.id);
             
-            // Для реферального задания показываем просто информацию
             if (task.id === 'referral') {
                 return `
                     <div class="task-item">
                         <div class="task-info">
                             <div class="task-title">${task.title}</div>
-                            <div class="task-progress">📱 Ссылка уже отправлена в боте</div>
+                            <div class="task-progress">👥 Приглашено: ${this.data.referrals}/20</div>
                         </div>
                         <span class="task-price">+${task.reward} ₽</span>
-                        <button class="task-button completed" disabled>
-                            В боте
+                        <button class="task-button ${this.data.referrals >= 20 ? 'completed' : ''}" disabled>
+                            ${this.data.referrals >= 20 ? 'Выполнено' : 'В боте'}
                         </button>
                     </div>
                 `;
             }
             
-            // Для обычных заданий
             return `
                 <div class="task-item">
                     <div class="task-info">
@@ -162,7 +134,7 @@ class UserData {
                     <span class="task-price">+${task.reward} ₽</span>
                     <button 
                         class="task-button ${isCompleted ? 'completed' : ''}" 
-                        onclick="handleTask('${task.id}')"
+                        onclick="handleTask('${task.id}', '${task.channel}')"
                         ${isCompleted ? 'disabled' : ''}
                     >
                         ${isCompleted ? 'Выполнено' : 'Выполнить'}
@@ -181,38 +153,61 @@ class UserData {
             notification.style.display = 'none';
         }, 3000);
     }
+
+    updateFromServer(data) {
+        if (data) {
+            this.data.balance = data.balance || this.data.balance;
+            this.data.referrals = data.referrals || this.data.referrals;
+            
+            if (data.tasks) {
+                data.tasks.forEach(task => {
+                    if (task.completed && !this.data.completedTasks.includes(task.id)) {
+                        this.data.completedTasks.push(task.id);
+                    }
+                });
+            }
+            
+            this.saveUserData();
+            this.updateUI();
+        }
+    }
 }
 
 // Задания
 const tasks = [
     {
         id: 'channel1',
-        title: 'Подписаться на @channel1',
-        reward: 300
+        title: 'Подписаться на канал 1',
+        reward: 300,
+        channel: '@channel1'
     },
     {
         id: 'channel2',
-        title: 'Подписаться на @channel2',
-        reward: 300
+        title: 'Подписаться на канал 2',
+        reward: 300,
+        channel: '@channel2'
     },
     {
         id: 'channel3',
-        title: 'Подписаться на @channel3',
-        reward: 300
+        title: 'Подписаться на канал 3',
+        reward: 300,
+        channel: '@channel3'
     },
     {
         id: 'channel4',
-        title: 'Подписаться на @channel4',
-        reward: 300
+        title: 'Подписаться на канал 4',
+        reward: 300,
+        channel: '@channel4'
     },
     {
         id: 'channel5',
-        title: 'Подписаться на @channel5',
-        reward: 299
+        title: 'Подписаться на канал 5',
+        reward: 299,
+        channel: '@channel5'
     },
     {
         id: 'referral',
-        title: 'Пригласить 20 друзей (ссылка в боте)',
+        title: 'Пригласить 20 друзей',
         reward: 6000
     }
 ];
@@ -261,34 +256,85 @@ function processWithdraw(method) {
         return;
     }
     
+    // Отправляем запрос на вывод в бота
+    tg.sendData(JSON.stringify({
+        action: 'withdraw',
+        amount: user.data.balance,
+        method: method,
+        details: value
+    }));
+    
     const message = document.getElementById('withdrawMessage');
-    message.innerHTML = 'Средства поступят в течение 8 часов';
+    message.innerHTML = 'Запрос отправлен. Средства поступят в течение 8 часов';
     message.style.background = '#ffd700';
     message.style.color = '#000';
-    
-    const userName = user.data.username;
-    const maskedName = userName.length > 2 
-        ? userName[0] + '*** ' + userName.slice(-2) + '******'
-        : 'Пользователь';
-    
-    user.addWithdrawal(maskedName, user.data.balance);
-    user.updateBalance(-user.data.balance);
     
     setTimeout(closeWithdrawModal, 3000);
 }
 
 // Обработка заданий
-function handleTask(taskId) {
+function handleTask(taskId, channel) {
     const task = tasks.find(t => t.id === taskId);
     
     if (!task || user.data.completedTasks.includes(taskId)) {
         return;
     }
     
-    // Имитация проверки подписки
-    user.showNotification(`Задание выполнено! Получено +${task.reward} ₽`);
-    user.completeTask(taskId);
+    // Открываем канал в Telegram
+    tg.openTelegramLink(`https://t.me/${channel.replace('@', '')}`);
+    
+    // Отправляем запрос на проверку подписки
+    tg.sendData(JSON.stringify({
+        action: 'check_subscription',
+        channel: channel,
+        channel_id: taskId
+    }));
+    
+    user.showNotification('Проверяем подписку...');
 }
+
+// Обработка данных от бота
+tg.onEvent('web_app_data', (event) => {
+    try {
+        const data = JSON.parse(event.data);
+        
+        if (data.status === 'success') {
+            if (data.subscribed) {
+                if (data.bonus) {
+                    user.updateBalance(data.bonus);
+                    user.showNotification(`✅ Задание выполнено! +${data.bonus} ₽`);
+                }
+                user.loadFromServer(); // Обновляем данные
+            } else if (data.subscribed === false) {
+                user.showNotification('❌ Вы не подписаны на канал. Подпишитесь и попробуйте снова');
+            }
+        } else if (data.status === 'error') {
+            user.showNotification('❌ ' + data.message);
+        }
+        
+        // Обновляем данные пользователя
+        if (data.balance !== undefined) {
+            user.data.balance = data.balance;
+            user.data.referrals = data.referrals || user.data.referrals;
+            
+            if (data.tasks) {
+                data.tasks.forEach(task => {
+                    if (task.completed && !user.data.completedTasks.includes(task.id)) {
+                        user.data.completedTasks.push(task.id);
+                    }
+                    if (task.id === 'referral' && task.progress !== undefined) {
+                        user.data.referrals = task.progress;
+                    }
+                });
+            }
+            
+            user.saveUserData();
+            user.updateUI();
+        }
+    } catch (e) {
+        console.log('Ошибка обработки данных от бота:', e);
+    }
+});
 
 // Закрытие модального окна при клике вне его
 window.onclick = function(event) {
