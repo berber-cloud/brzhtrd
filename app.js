@@ -112,15 +112,26 @@ class UserData {
             const isCompleted = this.data.completedTasks.includes(task.id);
             
             if (task.id === 'referral') {
+                // Показываем прогресс рефералов
+                const progress = this.data.referrals || 0;
+                const isReferralCompleted = progress >= 20;
+                
                 return `
                     <div class="task-item">
                         <div class="task-info">
                             <div class="task-title">${task.title}</div>
-                            <div class="task-progress">👥 Приглашено: ${this.data.referrals}/20</div>
+                            <div class="task-progress">
+                                👥 Приглашено: ${progress}/20
+                                ${progress > 0 ? `
+                                    <div style="background: #2a2a2a; height: 4px; border-radius: 2px; margin-top: 5px;">
+                                        <div style="background: #00ff00; width: ${(progress/20)*100}%; height: 4px; border-radius: 2px;"></div>
+                                    </div>
+                                ` : ''}
+                            </div>
                         </div>
                         <span class="task-price">+${task.reward} ₽</span>
-                        <button class="task-button ${this.data.referrals >= 20 ? 'completed' : ''}" disabled>
-                            ${this.data.referrals >= 20 ? 'Выполнено' : 'В боте'}
+                        <button class="task-button ${isReferralCompleted ? 'completed' : ''}" disabled>
+                            ${isReferralCompleted ? 'Выполнено' : 'В боте'}
                         </button>
                     </div>
                 `;
@@ -156,13 +167,25 @@ class UserData {
 
     updateFromServer(data) {
         if (data) {
-            this.data.balance = data.balance || this.data.balance;
-            this.data.referrals = data.referrals || this.data.referrals;
+            // Обновляем баланс
+            if (data.balance !== undefined) {
+                this.data.balance = data.balance;
+            }
             
+            // Обновляем количество рефералов
+            if (data.referrals !== undefined) {
+                this.data.referrals = data.referrals;
+            }
+            
+            // Обновляем выполненные задания
             if (data.tasks) {
                 data.tasks.forEach(task => {
                     if (task.completed && !this.data.completedTasks.includes(task.id)) {
                         this.data.completedTasks.push(task.id);
+                    }
+                    // Обновляем прогресс рефералов из задачи
+                    if (task.id === 'referral' && task.progress !== undefined) {
+                        this.data.referrals = task.progress;
                     }
                 });
             }
@@ -179,7 +202,7 @@ const tasks = [
         id: 'channel1',
         title: 'Подписаться на канал 1',
         reward: 300,
-        channel: '@channel1'
+        channel: '@arbitrazh65'
     },
     {
         id: 'channel2',
@@ -312,25 +335,9 @@ tg.onEvent('web_app_data', (event) => {
             user.showNotification('❌ ' + data.message);
         }
         
-        // Обновляем данные пользователя
-        if (data.balance !== undefined) {
-            user.data.balance = data.balance;
-            user.data.referrals = data.referrals || user.data.referrals;
-            
-            if (data.tasks) {
-                data.tasks.forEach(task => {
-                    if (task.completed && !user.data.completedTasks.includes(task.id)) {
-                        user.data.completedTasks.push(task.id);
-                    }
-                    if (task.id === 'referral' && task.progress !== undefined) {
-                        user.data.referrals = task.progress;
-                    }
-                });
-            }
-            
-            user.saveUserData();
-            user.updateUI();
-        }
+        // Обновляем данные пользователя из ответа
+        user.updateFromServer(data);
+        
     } catch (e) {
         console.log('Ошибка обработки данных от бота:', e);
     }
@@ -346,3 +353,8 @@ window.onclick = function(event) {
 
 // Инициализация интерфейса
 user.updateUI();
+
+// Периодически обновляем данные с сервера (каждые 30 секунд)
+setInterval(() => {
+    user.loadFromServer();
+}, 30000);
